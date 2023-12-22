@@ -1,5 +1,42 @@
 ---
 
+- name: Ensure the k3s hashsum is downloaded
+  delegate_to: localhost
+  when: k3s_hash_url is defined
+  ansible.builtin.uri:
+    url: "{{ k3s_hash_url }}"
+    return_content: true
+  register: k3s_hash_sum_raw
+  check_mode: false
+
+- name: Ensure sha256sum is set from hashsum variable
+  delegate_to: localhost
+  when: k3s_hash_url is defined
+  ansible.builtin.set_fact:
+    k3s_hash_sum: "{{ (k3s_hash_sum_raw.content.split('\n') |
+      select('search', 'k3s') |
+      reject('search', 'images') |
+      first).split() | first }}"
+  changed_when: false
+  check_mode: false
+
+- name: "Ensure directory {{ playbook_dir }}/files exists"
+  delegate_to: localhost
+  when: k3s_binary_url is defined
+  ansible.builtin.file:
+    path: "{{ playbook_dir }}/files"
+    state: directory
+    mode: 0755
+
+- name: Ensure k3s binary is downloaded to controller
+  delegate_to: localhost
+  when: k3s_binary_url is defined
+  ansible.builtin.get_url:
+    url: "{{ k3s_binary_url }}"
+    dest: "{{ playbook_dir }}/files/k3s"
+    checksum: "sha256:{{ k3s_hash_sum }}"
+    mode: 0755
+
 - name: Ensure installation directory exists
   ansible.builtin.file:
     path: "{{ k3s_install_dir }}"
